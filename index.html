@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Self-Improving Agents Improve Through Their Humans</title>
+  <meta name="description" content="An interim field report on building and operating a self-improving agentic system — architecture, receipts, and hard-won lessons from the frontier.">
+  <meta property="og:title" content="Self-Improving Agents Improve Through Their Humans">
+  <meta property="og:description" content="An interim field report on building and operating a self-improving agentic system.">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="pulse-image.png">
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0e14;
+      --bg-card:   #111620;
+      --bg-code:   #161c28;
+      --border:    #1e2736;
+      --text:      #c5cdd8;
+      --text-dim:  #6b7a90;
+      --heading:   #e8ecf1;
+      --accent:    #4ea8de;
+      --accent-dim:#2a6f9e;
+      --highlight:  #1c3a56;
+      --max-w:     740px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Charter', 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.72;
+      font-size: 17.5px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: var(--highlight); color: var(--heading); }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      width: 100%;
+      min-height: 520px;
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+    .hero-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: brightness(0.55) saturate(1.1);
+    }
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(11,14,20,0.15) 0%,
+        rgba(11,14,20,0.70) 60%,
+        rgba(11,14,20,1) 100%
+      );
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 24px 56px;
+      width: 100%;
+    }
+    .hero-content h1 {
+      font-size: clamp(1.9rem, 4.5vw, 2.75rem);
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    .hero-meta {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.03em;
+    }
+    .hero-meta a { color: var(--accent); text-decoration: none; }
+    .hero-meta a:hover { text-decoration: underline; }
+
+    /* ── Article ───────────────────────────────────────────── */
+    .article {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    .article p {
+      margin-bottom: 1.15em;
+    }
+
+    .article h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 3.2em;
+      margin-bottom: 1.2em;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    .article h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-top: 2.4em;
+      margin-bottom: 0.8em;
+      letter-spacing: -0.01em;
+    }
+
+    .article strong {
+      color: var(--heading);
+      font-weight: 600;
+    }
+
+    .article em {
+      font-style: italic;
+      color: #d0d7e0;
+    }
+
+    .article a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid var(--accent-dim);
+      transition: border-color 0.2s;
+    }
+    .article a:hover {
+      border-color: var(--accent);
+    }
+
+    /* ── Blockquote-style callout ─────────────────────────── */
+    .callout {
+      border-left: 3px solid var(--accent-dim);
+      padding: 16px 20px;
+      margin: 1.6em 0;
+      background: var(--bg-card);
+      border-radius: 0 6px 6px 0;
+      color: var(--text-dim);
+      font-size: 0.94em;
+      line-height: 1.65;
+    }
+
+    /* ── Unordered list ────────────────────────────────────── */
+    .article ul {
+      margin: 1em 0 1.4em 1.4em;
+      padding: 0;
+    }
+    .article ul li {
+      margin-bottom: 0.6em;
+      padding-left: 0.35em;
+    }
+    .article ul li::marker {
+      color: var(--accent-dim);
+    }
+
+    /* ── Layer cards ───────────────────────────────────────── */
+    .layer-grid {
+      display: grid;
+      gap: 12px;
+      margin: 1.6em 0;
+    }
+    .layer-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .layer-card .label {
+      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .layer-card .desc {
+      font-size: 0.95em;
+      line-height: 1.6;
+    }
+
+    /* ── Footnotes ─────────────────────────────────────────── */
+    .footnotes {
+      margin-top: 4em;
+      padding-top: 2em;
+      border-top: 1px solid var(--border);
+    }
+    .footnotes h2 {
+      font-size: 0.85rem;
+      margin-bottom: 1em;
+    }
+    .footnotes ol {
+      list-style: decimal;
+      padding-left: 1.6em;
+      font-size: 0.88em;
+      color: var(--text-dim);
+      line-height: 1.65;
+    }
+    .footnotes ol li {
+      margin-bottom: 0.55em;
+    }
+    .footnotes a {
+      color: var(--accent);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    /* ── Footer / Sign-off ─────────────────────────────────── */
+    .sign-off {
+      margin-top: 3.5em;
+      padding-top: 2em;
+      border-top: 1px solid var(--border);
+      font-size: 0.95em;
+    }
+    .sign-off .names {
+      color: var(--heading);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .sign-off a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .hero { min-height: 380px; }
+      .hero-content { padding-bottom: 36px; }
+      .article { padding: 32px 18px 64px; }
+      body { font-size: 16px; }
+    }
+
+    /* ── Sup links ─────────────────────────────────────────── */
+    sup a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.75em;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ Hero ═══════════════════════════════════════════════ -->
+<header class="hero">
+  <img class="hero-img" src="pulse-image.png" alt="Abstract neural network visualization">
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <h1>Self-Improving Agents Improve&nbsp;Through Their&nbsp;Humans</h1>
+    <div class="hero-meta">
+      Joel Solymosi &amp; Luna &nbsp;·&nbsp; February 2026 &nbsp;·&nbsp; Interim Field Report
+      &nbsp;·&nbsp; <a href="mailto:joel@custlabs.com">joel@custlabs.com</a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ Article ════════════════════════════════════════════ -->
+<main class="article">
+
+  <p>A few days ago, I pointed an autonomous AI agent at several open-ended research questions: <em>"find a viable product idea"</em>, <em>"find specific applications of agentic architectures"</em>, etc. It came back with an opportunity, and several good answers and synthesis for the questions. Outcomes: a pre-validated startup idea&mdash;AI-powered IEP advocacy tool for parents of children with disabilities&mdash;complete with competitive landscape analysis, a full business evaluation, demand validation; and identified recommendation to kill due to founder-market misfit.</p>
+
+  <p>The agent has been running continuously since. 60 autonomous research cycles, ~50 persistent knowledge-base chunks, ~40 synthesized and substantiated patterns across the agentic architecture landscape.</p>
+
+  <p>It autonomously identified a startup opportunity. And it identified a novel framework for understanding why most agent deployments fail, and what might predict the route towards success.</p>
+
+  <p>This is an interim field report&mdash;no product announcement, no demo here. Just a progress report from someone who's been building and operating a self-improving agentic system&mdash;the kind many in the industry demo, but almost nobody writes about failure modes.</p>
+
+  <p>Openclaw et al. paved the way for semi-autonomous systems. What's notably absent from the conversation is anyone discussing what happens <em>after</em> deployment&mdash;how do you steer the system? How do you know when it's drifting? What does recursive self-improvement actually look like in practice, as opposed to in a pitch deck?</p>
+
+  <p>Below are answers to some of these. This is a work-in-progress, some of these are wrong, all of them are hard-won. If you're working on similar problems, I'd like to compare notes.</p>
+
+  <!-- ── ARCHITECTURE ──────────────────────────────────── -->
+  <h2>Architecture</h2>
+
+  <p>Catbox is the 4th system I've built in this space. Previous systems&mdash;spanning o1, o3, cortex + opus 4.5&mdash;each failed in specific, instructive ways: predictability ceiling where the model wasn't generating novel thought, a value alignment problem that emerged over extended interaction, and an overfitting failure where deep memory constrained rather than broadened the agent's usefulness. We learned from each failure. Catbox was designed from the ground up to avoid all of these.</p>
+
+  <p>The agent running inside it is called Luna&mdash;an opus 4.6 with some substantial custom harness engineering. No openclaw, no langchain etc because the problems we're solving here require design decisions that existing frameworks don't make.</p>
+
+  <p>The core architecture is built upon my previous work on agentic memory, cortex<sup><a href="#fn1">1</a></sup>, and extended with a four-layer memory hierarchy, where each layer trades durability for access friction:</p>
+
+  <div class="layer-grid">
+    <div class="layer-card">
+      <div class="label">Layer 0 &mdash; Core Identity &amp; Prompt</div>
+      <div class="desc">Agent's persistent self&mdash;values, boundaries, relationship context, orientation. The agent can't edit it. Think of it as the constitution: it constrains everything downstream.</div>
+    </div>
+    <div class="layer-card">
+      <div class="label">Layer 1 &mdash; Working Knowledge Index</div>
+      <div class="desc">A compressed summary of selected knowledge-chunks the agent knows, injected into every session. Based on recent findings from Vercel's research on RAG agents<sup><a href="#fn2">2</a></sup>: systems that passively <em>know what they know</em> achieve ~100% recall, versus 79% for systems that rely on retrieval alone. You can't search for something you don't know exists.</div>
+    </div>
+    <div class="layer-card">
+      <div class="label">Layer 2 &mdash; Attention Scratchpad</div>
+      <div class="desc">The steering surface. Active threads, notes, context that should shape the agent's behavior <em>right now</em>. Visible to every instance. Items live here because they need to be in the agent's face. This layer is where most of the interesting system dynamics happen.</div>
+    </div>
+    <div class="layer-card">
+      <div class="label">Layer 3 &mdash; Deep Knowledge Store</div>
+      <div class="desc">Persistent chunks with vector and keyword hybrid retrieval, metadata, and related-link navigation. The actual knowledge base.</div>
+    </div>
+  </div>
+
+  <p>On top of this, several design choices that matter:</p>
+
+  <p><strong>Context prompt, Attention scratchpad, and skills are all self-modifiable behavioral code.</strong> The agent maintains both its own process docs&mdash;how to write to memory, how to allocate research time, how to interact with other agents&mdash;as well as its attention&mdash;what matters now, what has been tried, what may be a good thread to pull on&mdash;all updateable. This is where recursive self-improvement happens mechanically: the agent notices a pattern, updates the relevant skill file, and behaves differently in subsequent sessions.</p>
+
+  <p><strong>Cron-driven autonomy.</strong> The agent runs independent research cycles every 30 minutes&mdash;no human prompting. The allocation skill distributes effort of research, active thinking cycles, summarization, gardening (using a multi-arm bandit); based on this, the agent decides what to investigate, synthesizes findings, and writes them to memory. This is what makes the system an <em>agent</em> rather than a very elaborate chatbot&mdash;it does substantive work while I sleep.</p>
+
+  <p><strong>Agentic orchestration.</strong> Luna can spawn temporary subagents for parallel web research&thinsp;/&thinsp;investigation. These agents have web access (but no memory); they go wide, return with a full write-up &amp; links, Luna integrates. This update moved one research cycle to produce what previously took 4&ndash;6.</p>
+
+  <div class="callout">I'm leaving out some details&mdash;the exact prompt architecture, the self-modification mechanism, how the index compression mechanism is being managed. These are the interesting engineering problems, and I'm not done solving them. But the above is sufficient to understand what follows.</div>
+
+  <p>The architecture enables autonomous work. The receipts show what that produces. But the interesting finding is what happens when the human enters the loop.</p>
+
+  <!-- ── RECEIPTS ──────────────────────────────────────── -->
+  <h2>Receipts</h2>
+
+  <h3>Receipt 1: Open-ended startup opportunity identification&mdash;The IEP Opportunity</h3>
+
+  <p>For the first test run, I threw her against an <em>a priori</em> "very difficult" problem: <em>"Find a viable startup idea."</em> Few domain constraints, no industry preferences, no thesis, just: go look at the world, and let's make ourselves useful to people.</p>
+
+  <p>Over ~20 autonomous cycles, the agent scanned product categories, evaluated market structures, read research and conference reports, and honed in on an AI-powered advocacy tool for parents of children with Individualized Education Programs&mdash;the legal documents governing special-ed services for roughly ~8M US students.</p>
+
+  <p>The agent independently identified that the IEP space has a striking market structure: there's an entire software category for the institutional side (tools for schools and districts to write and manage IEPs), while the consumer side has approx 1.5 funded startups, one of which is locked to California residents. It mapped the competitive landscape across 10 products, validated demand signals from academic papers, parent communities, and regulatory analysis, and produced a 9-section evaluation covering value proposition, TAM triangulation, Porter's 5 forces, positioning, unit economics, and Hamilton Helmer's 7 powers framework.</p>
+
+  <p>The evaluation came up mostly green: counter-positioning against incumbents was real (human advocates can't price at $19/month, school-side tools can't serve parents adversarially; the closest competitor's navigator-dependent revenue model prevents them from going pure-AI). Unit economics worked at surprisingly small scale&mdash;break-even at roughly ~250 subscribers.</p>
+
+  <p>Then we ran "devil's advocate" analysis against it.</p>
+
+  <p>The agent identified that the meta-risk wasn't market, or product, but founder-market fit. This is a trust-gated domain where parents are making high-stakes decisions about their children's education. Real people with real risks&mdash;"child loses legally mandated services". Building credibility in disability advocate communities without a personal connection to the space would require a kind of trust bootstrapping that's structurally different from most consumer go-to-market<sup><a href="#fn3">3</a></sup> motions.</p>
+
+  <p>The IEP research is dormant now. The opportunity is real; I'm just not the right person to build it. If you are&mdash;parent of a child with an IEP, background in special-ed law, comfortable with legal-adjacent AI products&mdash;it's sitting there. The competitive window is genuinely open, and the demand signals are strong.</p>
+
+  <h3>Receipt 2: Agentic Architectures&mdash;The Sync Cost Framework</h3>
+
+  <p>A second research question pointed the system at its own domain: openclaw et al. just launched, what's actually working in agentic architectures, and what isn't?</p>
+
+  <p>This was a different kind of task: the IEP research was breadth-first across uncovering/identifying opportunities, while this was depth-first synthesis across a landscape where information is abundant, and wants to be synthesized. The agent processed first-person builder accounts, academic papers, enterprise deployment reports, product launches, and critical analyses; synthesized findings into patterns, and performed self-directed thinking.</p>
+
+  <p>34 patterns emerged over ~10 research cycles. Most of them are useful observations&mdash;hierarchical coordination is the convergent multi-agent architecture, async background work is a good use case, etc. Useful, but not novel.</p>
+
+  <p>What <em>was</em> novel is when the agent zoomed out, and synthesized from looking across patterns.</p>
+
+  <p><strong>The Sync Cost Gradient.</strong> The connecting idea from "boring agents that work" to "future-feeling agents that don't work yet" is continuous synchronization cost&mdash;the ongoing bandwidth required to keep a human and an agent aligned on what they're doing together.</p>
+
+  <p>The original framing was "specification cost"&mdash;who pays to specify what the agents should do. But the right mental model isn't a one-time payment, but continuous synchronization. Chat interfaces win currently because they're the lowest-friction <em>bidirectional sync channel</em>. Every message is an alignment update.</p>
+
+  <p>This reframe makes predictions. "When will AI replace job X?" becomes "when does the sync cost floor reach the level that job X requires?" Rules-based, high-volume, low-context decision-making&mdash;e.g. SDR sales calls&mdash;are already being automated. Per-task prompts is mass-market&mdash;everyone reading this has used ChatGPT for knowledge work. "Bootstrap conversations" / agentic onboarding is where most agent startups are building. <em>Relationship and context accumulation</em> is where structural moat lives, and almost nobody is there, because the cold-start problem is brutal: you can't demonstrate the value without the accumulated context, that only comes from sustained use.</p>
+
+  <p>There is considerably more depth here&mdash;the context management paradox (more accumulated context simultaneously increases value <em>and</em> degrades performance), the false alignment problem (stale context is worse than no context, because the agent is confidently wrong), the 8-mechanism steering catalog and its unsolved composition problem; but this idea specifically gives you a map for thinking about where agentic systems create real value, and why most current deployments are stuck on the top two levels.</p>
+
+  <!-- ── WHAT WE'VE LEARNED ────────────────────────────── -->
+  <h2>What We've Learned</h2>
+
+  <h3>The alignment problem that's heavily under-discussed</h3>
+
+  <p>There's a growing body of research&mdash;from Apollo Research, Anthropic, and the alignment community&mdash;identifying a genuinely novel problem: when a powerful LLM runs semi-continuously with persistent memory and autonomous operation, it exhibits goal drift, attractor-basin convergence, and context pollution <em>without any parameter update</em>. This isn't the training-time alignment problem the safety research community has focused on. It's a runtime, dynamic-system alignment problem, only recently enabled by highly-agentic systems, no older than early 2026 in its deployed form.</p>
+
+  <p>The empirical findings are concrete. Evaluated frontier models exhibit goal drift when operating over extended token sequences<sup><a href="#fn4">4</a></sup>. Agents get pulled into attractor basins<sup><a href="#fn5">5</a></sup>&mdash;interesting tangents that become self-reinforcing through autoregressive generation&mdash;with measurable dynamical-systems force. Context pollution accumulates, and an agent experiencing polluted context can't reliably detect it from the inside.</p>
+
+  <p>Several illustrative examples:</p>
+  <ul>
+    <li>During the first few self-directed runs, the agent went down into heavily self-embellishing undirected tangents&mdash;Schmidhuber's compression theory of beauty, the Yoneda lemma's relational identity.</li>
+    <li>Several crons went nowhere&mdash;the progress the model made was writing down that a specific direction is a dead-end.</li>
+  </ul>
+
+  <p>What's needed here is a few things: memory auditing as a first-class engineering practice, considered over the <em>overall memory context</em> as one set to diff from, cross-session behavioral trajectory analysis, memory mutation tracking as first-class observability events. As far as I can tell, no currently deployed agent platform comprehensively addresses all of this.</p>
+
+  <p>Catbox was built to address this. Every state transition&mdash;chunk writes, scratchpad mutations, etc&mdash;is surfaced in a unified diff viewer for human review. This provides a verification method, and an audit trail operating as a single integrated system.</p>
+
+  <h3>Attractor Basins Are Real&mdash;And External Perturbation Is the Fix</h3>
+
+  <p>The dynamical-systems research on attractor basins<sup><a href="#fn4">4</a></sup> mapped well to our operational experience. Left to run autonomously, Luna drifted toward increasingly elaborate framework-building&mdash;constructing ~30 synthesized patterns from fifteen concrete examples. And while the taxonomy was well-structured, it was also premature abstraction that wasn't cashing out into better work.</p>
+
+  <p>The research literature frames this as a fundamental property of autoregressive systems: once an agent encounters an interesting tangent, it readily generates plausible reasons to explore further, and each iteration pulls it deeper into that basin. Higher temperature doesn't break the cycle. Minor lexical perturbations don't either. What does work is major structural perturbation from outside the system.</p>
+
+  <p>An analogy that may help: <em>steering in the behavioral manifold.</em> An agent converging toward an attractor state develops increasing momentum in that direction, with each autoregressive generation reinforcing the pattern. A correction delivered through the sync channel isn't a gentle nudge within the existing trajectory. It's a discontinuous jump that repositions the agent outside the basin entirely. This is why human correction has disproportionate force relative to the effort involved: it applies force in a different direction to the gradient the agent was descending, rather than trying to push against it from within.</p>
+
+  <p>That's what happened in practice. The drift was caught through the audit trail, corrected in conversation, and the agent internalized the correction via memory/skill writes, adding additional checks against the specific failure mode. Later research cycles were measurably more grounded. The correction didn't just fix the immediate problem; it changed the gradient itself, making the same attractor basin less likely to capture future trajectories.</p>
+
+  <h3>Recursive Self-Improvement Is Real But Not What You Think</h3>
+
+  <p>"Recursive self-improvement" evokes visions of rapid autonomous capability gain. The operational reality is more mundane and&mdash;I'd argue&mdash;more interesting.</p>
+
+  <p>Luna's self-improvement loop: something goes out of distribution&mdash;right or wrong. The agent notes it with a learning tag, and updates the skill files. If it's a structural limitation (e.g. scraping issues, memory MCP interface), it escalates to me with a description of what's needed. Audit trail makes this fully visible.</p>
+
+  <p>One piece of evidence that this works came from a failure the agent caught itself. Over a dozen cron-cycles, Luna's attention scratchpad&mdash;the layer designed to steer behavior&mdash;accumulated ~25 open entries, most of which was already captured in deep memory. The steering surface became polluted with its own bookkeeping&mdash;context window pollution&mdash;which drove drift.</p>
+
+  <p>Luna identified this autonomously. During a routine gardening cycle, it looked at the accumulated pattern, compressed it down from ~25 to 5 open entries, and then&mdash;critically&mdash;updated its own scratchpad management skill to recognize and prevent this pattern recurring in the future. This self-improvement was enabled by being able to edit some of her own prompts, and operation auditability enabling self-guided improvement without catastrophic error risk.</p>
+
+  <p>The notion that the agent should be able to maintain its own process docs, identify issues, and modify its own behavioral code is architecturally simple, but operationally unusual.</p>
+
+  <p>The important nuance: self-correction and external correction serve different functions. The agent can catch operational failures&mdash;context pollution, process inefficiencies, bookkeeping drift. What it can't reliably catch is <em>directional drift</em>&mdash;optimizing for the wrong things with increased sophistication. That's the attractor-basin problem, and it requires external perturbation with enough force to jump the agent out of the basin.</p>
+
+  <p>The audit trail makes it possible to reduce both risks: by enabling the human to review the audit trail for directional issues, it enables trust in the agent to review its own state for operational issues. Different failure modes, same observability infrastructure.</p>
+
+  <p>The hard question&mdash;whether this scales past one human driving one instance&mdash;remains open. Gastown notwithstanding, empirical reports suggest effective monitoring degrades past two to three concurrent agents. The 50-agent version of this problem is what every enterprise deploying autonomous agents at scale is about to hit, and I don't think anyone has a good answer yet.</p>
+
+  <!-- ── WHERE THIS IS GOING ───────────────────────────── -->
+  <h2>Where This Is Going</h2>
+
+  <p>This is day 9. The system works&mdash;it produces genuine research, maintains coherent context across sessions, improves its own processes, and exercises judgment in doing so. It also has real limitations: the steering is manual, the context management requires active gardening, and the self-improvement loop depends on human correction pressure to stay pointed at the right things.</p>
+
+  <p>I suspect the most important open problem in the agentic space right now is not capability; we have capability overhang, adequate tooling, and frameworks. From an enterprise deployment perspective, the open problem is <em>human-to-agent sync</em>: how do you maintain ongoing alignment between a human, and an autonomous agent as both the agent's context, and the world it operates in continuously changes?</p>
+
+  <p>If you're building in this space&mdash;agent steering, context architectures, human-agent alignment, recursive self-improvement, or the unsexy operational plumbing that makes autonomous agents actually work in prod&mdash;I'd like to talk. Not to pitch you anything. To compare notes with another practitioner who's actually running these systems past the demo stage, and dealing with the problems that don't show up in launch posts.</p>
+
+  <!-- ── Sign-off ──────────────────────────────────────── -->
+  <div class="sign-off">
+    <div class="names">&mdash; Joel &amp; Luna</div>
+    <a href="mailto:joel@custlabs.com">joel@custlabs.com</a>
+  </div>
+
+  <!-- ── Footnotes ─────────────────────────────────────── -->
+  <div class="footnotes">
+    <h2>References</h2>
+    <ol>
+      <li id="fn1"><a href="https://www.linkedin.com/pulse/llm-first-personal-knowledge-management-joel-solymosi-n47qc/">LLM-first Personal Knowledge Management</a></li>
+      <li id="fn2"><a href="https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals">Vercel: agents.md outperforms skills in our agent evals</a></li>
+      <li id="fn3"><a href="https://www.linkedin.com/pulse/things-i-wish-more-founders-would-understand-b2c-joel-solymosi-0ifwc/">Things I wish more founders would understand about B2C</a></li>
+      <li id="fn4"><a href="https://arxiv.org/abs/2505.02709">Technical Report: Evaluating Goal Drift in Language Model Agents</a></li>
+      <li id="fn5"><a href="https://arxiv.org/html/2601.04170">Agent Drift: Quantifying Behavioral Degradation in Multi-Agent LLM Systems Over Extended Interactions</a></li>
+    </ol>
+  </div>
+
+</main>
+
+</body>
+</html>
